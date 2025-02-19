@@ -1,0 +1,186 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+void read_input(FILE *file, int *P, int *R, int **E, int ***C, int ***R_matrix);
+bool is_deadlocked(int P, int R, int *E, int **C, int **R_matrix);
+void find_deadlocked_processes(int P, int R, int *E, int **C, int **R_matrix);
+void print_matrix(int P, int R, int **matrix);
+
+int main() {
+    FILE *file = fopen("task7_input.txt", "r");
+    if (file == NULL) {
+        printf("Error opening file!\n");
+        return -1;
+    }
+
+    int P, R;
+    int *E;
+    int **C, **R_matrix;
+
+    // Read input data
+    read_input(file, &P, &R, &E, &C, &R_matrix);
+    fclose(file);
+
+    // Check for deadlock
+    if (is_deadlocked(P, R, E, C, R_matrix)) {
+        printf("Deadlock detected.\n");
+        find_deadlocked_processes(P, R, E, C, R_matrix);
+    } else {
+        printf("No deadlock detected.\n");
+    }
+
+    // Free dynamically allocated memory
+    free(E);
+    for (int i = 0; i < P; i++) {
+        free(C[i]);
+        free(R_matrix[i]);
+    }
+    free(C);
+    free(R_matrix);
+
+    return 0;
+}
+
+void read_input(FILE *file, int *P, int *R, int **E, int ***C, int ***R_matrix) {
+    fscanf(file, "%d %d", P, R);  // Read P and R
+
+    *E = (int *)malloc(*R * sizeof(int));
+    for (int i = 0; i < *R; i++) {
+        fscanf(file, "%d", &(*E)[i]);  // Read available resources of each type
+    }
+
+    *C = (int **)malloc(*P * sizeof(int *));
+    *R_matrix = (int **)malloc(*P * sizeof(int *));
+    for (int i = 0; i < *P; i++) {
+        (*C)[i] = (int *)malloc(*R * sizeof(int));
+        (*R_matrix)[i] = (int *)malloc(*R * sizeof(int));
+        for (int j = 0; j < *R; j++) {
+            fscanf(file, "%d", &(*C)[i][j]);  // Read allocation matrix
+        }
+    }
+
+    for (int i = 0; i < *P; i++) {
+        for (int j = 0; j < *R; j++) {
+            fscanf(file, "%d", &(*R_matrix)[i][j]);  // Read request matrix
+        }
+    }
+}
+
+bool is_deadlocked(int P, int R, int *E, int **C, int **R_matrix) {
+    int *available = (int *)malloc(R * sizeof(int));
+    for (int i = 0; i < R; i++) {
+        available[i] = E[i];  // Available resources initially set to total resources
+    }
+
+    for (int i = 0; i < P; i++) {
+        for (int j = 0; j < R; j++) {
+            available[j] -= C[i][j];  // Subtract allocated resources
+        }
+    }
+
+    bool *finished = (bool *)malloc(P * sizeof(bool));
+    for (int i = 0; i < P; i++) {
+        finished[i] = false;  // Initially, no processes are finished
+    }
+
+    bool progress = true;
+    while (progress) {
+        progress = false;
+        for (int i = 0; i < P; i++) {
+            if (!finished[i]) {
+                bool can_finish = true;
+                for (int j = 0; j < R; j++) {
+                    if (R_matrix[i][j] > available[j]) {
+                        can_finish = false;
+                        break;
+                    }
+                }
+
+                if (can_finish) {
+                    finished[i] = true;
+                    progress = true;
+                    for (int j = 0; j < R; j++) {
+                        available[j] += C[i][j];  // Add back allocated resources
+                    }
+                }
+            }
+        }
+    }
+
+    // Check for deadlock: if any process is not finished, it is deadlocked
+    bool deadlocked = false;
+    for (int i = 0; i < P; i++) {
+        if (!finished[i]) {
+            deadlocked = true;
+        }
+    }
+
+    free(available);
+    free(finished);
+
+    return deadlocked;
+}
+
+void find_deadlocked_processes(int P, int R, int *E, int **C, int **R_matrix) {
+    int *available = (int *)malloc(R * sizeof(int));
+    for (int i = 0; i < R; i++) {
+        available[i] = E[i];
+    }
+
+    for (int i = 0; i < P; i++) {
+        for (int j = 0; j < R; j++) {
+            available[j] -= C[i][j];
+        }
+    }
+
+    bool *finished = (bool *)malloc(P * sizeof(bool));
+    for (int i = 0; i < P; i++) {
+        finished[i] = false;
+    }
+
+    bool progress = true;
+    while (progress) {
+        progress = false;
+        for (int i = 0; i < P; i++) {
+            if (!finished[i]) {
+                bool can_finish = true;
+                for (int j = 0; j < R; j++) {
+                    if (R_matrix[i][j] > available[j]) {
+                        can_finish = false;
+                        break;
+                    }
+                }
+
+                if (can_finish) {
+                    finished[i] = true;
+                    progress = true;
+                    for (int j = 0; j < R; j++) {
+                        available[j] += C[i][j];
+                    }
+                }
+            }
+        }
+    }
+
+    printf("Deadlocked Processes: ");
+    for (int i = 0; i < P; i++) {
+        if (!finished[i]) {
+            printf("P%d ", i);
+        }
+    }
+    printf("\n");
+
+    free(available);
+    free(finished);
+}
+
+void print_matrix(int P, int R, int **matrix) {
+    for (int i = 0; i < P; i++) {
+        for (int j = 0; j < R; j++) {
+            printf("%d ", matrix[i][j]);
+        }
+        printf("\n");
+    }
+}
+
