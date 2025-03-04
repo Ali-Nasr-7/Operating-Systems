@@ -1,0 +1,95 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <limits.h>
+#include <string.h>
+
+#define MAX_PAGES 1000  // Maximum number of unique pages
+#define SHIFT_AMOUNT 1   // Right shift amount for aging
+
+typedef struct {
+    int page;
+    uint8_t age;  // 8-bit aging counter
+} PageFrame;
+
+// Function to check if a page is in frames, update age, and return index
+int find_page(PageFrame *frames, int num_frames, int page) {
+    for (int i = 0; i < num_frames; i++) {
+        if (frames[i].page == page) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Function to find the least recently used page using aging counters
+int find_lru(PageFrame *frames, int num_frames) {
+    int lru_index = 0;
+    uint8_t min_age = UCHAR_MAX;
+
+    for (int i = 0; i < num_frames; i++) {
+        if (frames[i].age < min_age) {
+            min_age = frames[i].age;
+            lru_index = i;
+        }
+    }
+    return lru_index;
+}
+
+// Simulate paging using aging algorithm
+int simulate_paging(const char *filename, int num_frames) {
+    FILE *file = fopen(filename, "r");
+    if (!file) {
+        perror("Error opening file");
+        return -1;
+    }
+
+    PageFrame *frames = calloc(num_frames, sizeof(PageFrame));
+    for (int i = 0; i < num_frames; i++) frames[i].page = -1; // Initialize
+
+    int page_faults = 0, total_references = 0, page;
+    while (fscanf(file, "%d", &page) == 1) {
+        total_references++;
+
+        // Shift aging counters right
+        for (int i = 0; i < num_frames; i++) {
+            frames[i].age >>= SHIFT_AMOUNT;
+        }
+
+        int index = find_page(frames, num_frames, page);
+        if (index != -1) {
+            // Page hit: set MSB to indicate recent use
+            frames[index].age |= 0x80;
+        } else {
+            // Page fault: find victim using LRU aging
+            int replace_index = find_lru(frames, num_frames);
+            frames[replace_index].page = page;
+            frames[replace_index].age = 0x80;  // Mark as recently used
+            page_faults++;
+        }
+    }
+
+    free(frames);
+    fclose(file);
+
+    return (total_references > 0) ? (page_faults * 1000) / total_references : 0;
+}
+
+// Main function to test various frame sizes
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        fprintf(stderr, "Usage: %s <input_file> <max_frames>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    const char *filename = argv[1];
+    int max_frames = atoi(argv[2]);
+
+    printf("Frames,Page Faults per 1000 References\n");
+    for (int frames = 1; frames <= max_frames; frames++) {
+        int faults = simulate_paging(filename, frames);
+        printf("%d,%d\n", frames, faults);
+    }
+
+    return EXIT_SUCCESS;
+}
