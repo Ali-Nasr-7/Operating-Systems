@@ -1,0 +1,77 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#define N 8             // Number of different pages
+#define P 0.6           // Probability of referencing the same page
+#define FRAMES_LOCAL 4  // Frames per process (local)
+#define FRAMES_GLOBAL 6 // Total frames shared (global)
+#define REFERENCES 25   // Number of page references per process
+
+// Generate page reference string
+void generate_page_references(int refs[], int length, double p, int num_pages) {
+    srand(time(NULL));
+    refs[0] = rand() % num_pages; // Start with a random page
+
+    for (int i = 1; i < length; i++) {
+        if ((double)rand() / RAND_MAX < p) {
+            refs[i] = refs[i - 1]; // Stay on the same page
+        } else {
+            refs[i] = rand() % num_pages; // Switch to a random page
+        }
+    }
+}
+
+// FIFO page replacement (returns page fault count)
+int fifo_page_replacement(int refs[], int length, int frames) {
+    int page_faults = 0;
+    int page_table[frames];
+    int index = 0, found;
+
+    for (int i = 0; i < frames; i++) page_table[i] = -1; // Initialize empty frames
+
+    for (int i = 0; i < length; i++) {
+        found = 0;
+        for (int j = 0; j < frames; j++) {
+            if (page_table[j] == refs[i]) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) { // Page fault
+            page_table[index] = refs[i];
+            index = (index + 1) % frames;
+            page_faults++;
+        }
+    }
+    return page_faults;
+}
+
+int main() {
+    int refs1[REFERENCES], refs2[REFERENCES];
+
+    // Generate reference strings for two processes
+    generate_page_references(refs1, REFERENCES, P, N);
+    generate_page_references(refs2, REFERENCES, P, N);
+
+    // Local page replacement
+    int faults_local_1 = fifo_page_replacement(refs1, REFERENCES, FRAMES_LOCAL);
+    int faults_local_2 = fifo_page_replacement(refs2, REFERENCES, FRAMES_LOCAL);
+
+    // Global page replacement (combined references)
+    int combined_refs[REFERENCES * 2];
+    for (int i = 0; i < REFERENCES; i++) {
+        combined_refs[i] = refs1[i];
+        combined_refs[i + REFERENCES] = refs2[i];
+    }
+    int faults_global = fifo_page_replacement(combined_refs, REFERENCES * 2, FRAMES_GLOBAL);
+
+    // Print results
+    printf("Local Page Replacement:\n");
+    printf("  Process 1 Page Faults: %d\n", faults_local_1);
+    printf("  Process 2 Page Faults: %d\n", faults_local_2);
+    printf("\nGlobal Page Replacement:\n");
+    printf("  Total Page Faults: %d\n", faults_global);
+
+    return 0;
+}
